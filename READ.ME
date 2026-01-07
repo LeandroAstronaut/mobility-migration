@@ -1,0 +1,30 @@
+Para hacer una migracion tenemos que tener la base de datos en local, y cambiar los datos en el .env
+Podemos manejar
+- BD de origen y destino
+- Offset y limit
+
+
+Este te pone todo
+node run.js full
+
+Este te resetea a cero
+node run.js reset
+
+Esto para importacion a Cloudinary
+node run.js images
+
+Acción	Comando
+Migrar solo categorías	node run.js categories
+Migrar solo tags	node run.js tags
+Migrar solo notas (posts)	node run.js notes
+Correr todo en orden (categories → tags → notes)	node run.js full
+Resetear la base (vaciar colecciones)	node run.js reset
+
+Backup de Wordpress
+wpla_posts
+wpla_postmeta
+wpla_terms
+wpla_term_taxonomy
+wpla_term_relationships
+wpla_users
+
