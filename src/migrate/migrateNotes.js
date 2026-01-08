@@ -5,6 +5,7 @@ const Category = require("../models/Category");
 const Tag = require("../models/Tag");
 const Admin = require("../models/Admin");
 const Platform = require("../models/Platform");
+const Country = require("../models/Country");
 
 const { cleanHtml } = require("../utils/cleanHtml");
 const { fixEncoding } = require("../utils/fixEncoding");
@@ -12,6 +13,22 @@ const { fixEncoding } = require("../utils/fixEncoding");
 const { getWpPosts } = require("../wordpress/getWpPosts");
 const { getWpThumbnail } = require("../wordpress/getWpThumbnail");
 const { getWpPostTerms } = require("../wordpress/getWpPostTerms");
+
+function extractFirstImageFromContent(html) {
+  if (!html) return null;
+
+  // <img src="...">
+  const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (imgMatch) return imgMatch[1];
+
+  // Gutenberg cover block
+  const coverMatch = html.match(/"url":"(https?:\/\/[^"]+)"/i);
+  if (coverMatch) return coverMatch[1];
+
+  return null;
+}
+
+
 
 async function migrateNotes() {
   await connectMongo();
@@ -47,6 +64,16 @@ async function migrateNotes() {
     const cats = terms.filter((t) => t.taxonomy === "category");
     const tagList = terms.filter((t) => t.taxonomy === "post_tag");
 
+    // ----------------------------------
+    // 🌍 RESOLVER COUNTRIES DESDE TAGS
+    // ----------------------------------
+    const tagSlugs = tagList.map((t) => t.slug);
+
+    // buscamos countries cuyo slug coincida con algún tag
+    const countryDocs = await Country.find({
+      slug: { $in: tagSlugs },
+    }).lean();
+
     const hasSpainCategory = cats.some(
       (c) => c.slug === "mobility-portal-spain"
     );
@@ -81,10 +108,18 @@ async function migrateNotes() {
       slug: { $in: tagList.map((t) => t.slug) },
     }).lean();
 
-    const image = await getWpThumbnail(post.ID);
-
+   
     const rawContent = fixEncoding(post.post_content || "");
     const content = cleanHtml(rawContent);
+
+    let image = await getWpThumbnail(post.ID);
+
+    if (!image) {
+      const contentImage = extractFirstImageFromContent(rawContent);
+      if (contentImage) {
+        image = contentImage;
+      }
+    }
     const rawExcerpt = fixEncoding(post.post_excerpt || "");
 
     const publishedAt = post.post_date || post.post_date_gmt;
@@ -119,6 +154,7 @@ async function migrateNotes() {
 
         categories: catDocs.map((c) => c._id),
         tags: tagDocs.map((t) => t._id),
+        countries: countryDocs.map((c) => c._id),
         platforms: [platform._id],
 
         author: author?._id || null,
